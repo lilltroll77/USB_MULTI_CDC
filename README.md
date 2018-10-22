@@ -6,7 +6,9 @@ Outgoing block transfers are handles by the CDC core directly and does not affec
 
 Each CDC has 2 FIFO's (RX+TX) and they can have different size.
 
-The code is intended to work with https://libusb.info/
+The code is intended to work with https://libusb.info/ on the host side.
 
 Under Windows, an USB device called XMOS BLDC motor driver should enumerate. 
 To add a Windows driver, choose WINUSB in the list over already available Windows drivers.
+
+This code is under development.
