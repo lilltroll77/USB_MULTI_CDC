@@ -24,7 +24,11 @@ typedef unsigned long long s64;
 
 #define FIFO1_LEN 1024
 #define FIFO2_LEN 64
-#define BLOCKSIZE 16
+#define BLOCKSIZE 128
+
+#if(BLOCKSIZE >128)
+#error "Maximum block size in bulk mode is 512 bytes in USB 2.0"
+#endif
 
 //recieve data from host
 struct XUDbufferRx_t{
@@ -294,7 +298,7 @@ unsafe void Endpoints(server interface cdc_if cdc[] , chanend chan_ep_out[] , XU
         break;
         case cdc[0].writeblock(int* data):
            XUD_SetReady_In(  buffer.tx.ep[1] ,(char*) data , BLOCKSIZE*sizeof(int));
-            printf("Write block\n");
+           // printf("Write block\n");
                 break;
 
         case cdc->queue_empty():
@@ -329,7 +333,7 @@ unsafe void Endpoints(server interface cdc_if cdc[] , chanend chan_ep_out[] , XU
 //        if( rx_ptr >= (sizeof( buffer.rx0)-512 ))
 //            XUD_SetReady_Out(ep_out[1],  &(buffers.rx0 , unsigned char [])[rx_ptr]);
 
-enum message_e{A , B , streamOUT1MB};
+enum message_e{A , B , streamOUT};
 
 interface gui_if{
     [[guarded]] float setA(float a);
@@ -340,6 +344,7 @@ interface gui_if{
 union rx_u{
     float a;
     float b;
+    int stream;
 };
 
 struct header_t{
@@ -355,7 +360,7 @@ unsafe void cdc_handler1(client interface cdc_if cdc , client interface gui_if g
     XUD_Result_t result;
     rx_t* rx = (rx_t*) buff->rx.read1;
     float prod;
-
+    int stream_active=0;
     int block[2][BLOCKSIZE];
     int block_i=0;
 
@@ -382,13 +387,16 @@ unsafe void cdc_handler1(client interface cdc_if cdc , client interface gui_if g
                      printf("CDC B: prod = %f\n" , prod );
 #endif
                      break;
-                case streamOUT1MB:
-                    printf("streamOUT1MB\n");
-                    for(int i=0; i<(1024/sizeof(int)/BLOCKSIZE) ; i++){
-                        gui.writeBlockToHost( block[block_i]);
-                        cdc.writeblock(block[block_i]);
-                        block_i =! block_i;
+                case streamOUT:
+                    stream_active = rx->data.stream;
+                    if(stream_active){ // write first block
+                     gui.writeBlockToHost( block[block_i]);
+                     cdc.writeblock( block[block_i]);
+                     block_i =! block_i;
+                     gui.writeBlockToHost( block[block_i]); // prepare next block
+
                     }
+
                     break;
                 default:
                     printf("Unknown command: %d\n" , rx->header.command);
@@ -430,8 +438,11 @@ unsafe void cdc_handler1(client interface cdc_if cdc , client interface gui_if g
                     printf("CDC: !! RES_ERROR!! in SETDATA");
                     break;
                 }
-                //buff->tx.queue_len1--;
-                //buff->reset_N =1;
+                if(stream_active){
+                    cdc.writeblock( block[block_i]);
+                    block_i = !block_i;
+                    gui.writeBlockToHost( block[block_i]);
+                }
              break;
         }//select
     }
