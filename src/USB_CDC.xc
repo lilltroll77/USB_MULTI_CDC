@@ -9,185 +9,24 @@
 #include "xud.h"
 #include <platform.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <xclib.h>
 #include "string.h"
+#include "structs.h"
+#include "descriptors.h"
+
 #define DEBUG 0
 #define DEBUG_RESET 0
-
-
-#define XUD_EP_COUNT_OUT 2
-#define XUD_EP_COUNT_IN 2
 
 
 typedef unsigned long long u64;
 typedef unsigned long long s64;
 
-#define FIFO1_LEN 1024
-#define FIFO2_LEN 64
-#define BLOCKSIZE 128
+extern XUD_Result_t ControlInterfaceClassRequests(XUD_ep ep_out, XUD_ep ep_in, USB_SetupPacket_t sp);
 
 #if(BLOCKSIZE >128)
 #error "Maximum block size in bulk mode is 512 bytes in USB 2.0"
 #endif
-
-//recieve data from host
-struct XUDbufferRx_t{
-    int* unsafe write1;
-    int* unsafe write2;
-    int* unsafe read1;
-    int* unsafe read2;
-    int* unsafe fifoLen1;
-    int* unsafe fifoLen2;
-    unsigned pkg_maxSize1;
-    unsigned pkg_maxSize2;
-    unsigned queue_len1;
-    unsigned queue_len2;
-    XUD_ep ep[XUD_EP_COUNT_OUT];
-    int fifo1[FIFO1_LEN];
-    int fifo2[FIFO2_LEN];
-};
-
-
-//transmir data to host
-struct XUDbufferTx_t{
-    int* unsafe write1;
-    int* unsafe write2;
-    int* unsafe read1;
-    int* unsafe read2;
-    unsigned ready1;
-    unsigned ready2;
-    unsigned dataWaiting1;
-    unsigned dataWaiting2;
-    unsigned queue_len1;
-    unsigned queue_len2;
-    XUD_ep ep[XUD_EP_COUNT_IN];
-    int fifo1[FIFO1_LEN];
-    int fifo2[FIFO2_LEN];
-};
-
-typedef struct{
-    struct XUDbufferTx_t tx;
-    struct XUDbufferRx_t rx;
-    int reset_N;
-}XUD_buffers_t;
-
-#define BCD_DEVICE              0x1000
-#define VENDOR_ID               0x20B1
-#define PRODUCT_ID              0x00CC
-#define MANUFACTURER_STR_INDEX  0x0001
-#define PRODUCT_STR_INDEX       0x0002
-
-/* Vendor specific class defines */
-#define VENDOR_SPECIFIC_CLASS    0xff
-#define VENDOR_SPECIFIC_SUBCLASS 0x00
-#define VENDOR_SPECIFIC_PROTOCOL 0x00
-
-
-
-
-static unsigned char MSOS20PlatformCapabilityDescriptor[] =
-{
-    //
-    // Microsoft OS 2.0 Platform Capability Descriptor Header
-    //
-    0x1C,                    // bLength - 28 bytes
-    0x10,                    // bDescriptorType - 16
-    0x05,                    // bDevCapability – 5 for Platform Capability
-    0x00,                    // bReserved - 0
-    0xDF, 0x60, 0xDD, 0xD8,  // MS_OS_20_Platform_Capability_ID -
-    0x89, 0x45, 0xC7, 0x4C,  // {D8DD60DF-4589-4CC7-9CD2-659D9E648A9F}
-    0x9C, 0xD2, 0x65, 0x9D,  //
-    0x9E, 0x64, 0x8A, 0x9F,  //
-
-    //
-    // Descriptor Information Set for Windows 8.1 or later
-    //
-    0x00, 0x00, 0x03, 0x06,  // dwWindowsVersion – 0x06030000 for Windows Blue
-    0x48, 0x00,              // wLength – size of MS OS 2.0 descriptor set
-    0x01,                    // bMS_VendorCode
-    0x00,                    // bAltEnumCmd – 0 Does not support alternate enum
-};
-
-
-
-/* Device Descriptor */
-static unsigned char devDesc[] =
-{
-    0x12,                     /* 0  bLength */
-    USB_DESCTYPE_DEVICE,      /* 1  bdescriptorType */
-    0x00,                     /* 2  bcdUSB */
-    0x02,                     /* 3  bcdUSB */
-    VENDOR_SPECIFIC_CLASS,    /* 4  bDeviceClass */
-    VENDOR_SPECIFIC_SUBCLASS, /* 5  bDeviceSubClass */
-    VENDOR_SPECIFIC_PROTOCOL, /* 6  bDeviceProtocol */
-    0x40,                     /* 7  bMaxPacketSize */
-    (VENDOR_ID & 0xFF),       /* 8  idVendor */
-    (VENDOR_ID >> 8),         /* 9  idVendor */
-    (PRODUCT_ID & 0xFF),      /* 10 idProduct */
-    (PRODUCT_ID >> 8),        /* 11 idProduct */
-    (BCD_DEVICE & 0xFF),      /* 12 bcdDevice */
-    (BCD_DEVICE >> 8),        /* 13 bcdDevice */
-    MANUFACTURER_STR_INDEX,   /* 14 iManufacturer */
-    PRODUCT_STR_INDEX,        /* 15 iProduct */
-    0x00,                     /* 16 iSerialNumber */
-    0x01                      /* 17 bNumConfigurations */
-};
-
-/* Configuration Descriptor */
-static unsigned char cfgDesc[] =
-{
-    0x09,                     /* 0  bLength */
-    0x02,                     /* 1  bDescriptortype */
-    0x20, 0x00,               /* 2  wTotalLength */
-    0x01,                     /* 4  bNumInterfaces */
-    0x01,                     /* 5  bConfigurationValue */
-    0x00,                     /* 6  iConfiguration */
-    0x80,                     /* 7  bmAttributes */
-    0xFA,                     /* 8  bMaxPower */
-
-    0x09,                     /* 0  bLength */
-    0x04,                     /* 1  bDescriptorType */
-    0x00,                     /* 2  bInterfacecNumber */
-    0x00,                     /* 3  bAlternateSetting */
-    0x02,                     /* 4: bNumEndpoints */
-    0xFF,                     /* 5: bInterfaceClass */
-    0xFF,                     /* 6: bInterfaceSubClass */
-    0xFF,                     /* 7: bInterfaceProtocol*/
-    0x03,                     /* 8  iInterface */
-
-    0x07,                     /* 0  bLength */
-    0x05,                     /* 1  bDescriptorType */
-    0x01,                     /* 2  bEndpointAddress */
-    0x02,                     /* 3  bmAttributes */
-    0x00,                     /* 4  wMaxPacketSize */
-    0x02,                     /* 5  wMaxPacketSize */
-    0x01,                     /* 6  bInterval */
-
-    0x07,                     /* 0  bLength */
-    0x05,                     /* 1  bDescriptorType */
-    0x81,                     /* 2  bEndpointAddress */
-    0x02,                     /* 3  bmAttributes */
-    0x00,                     /* 4  wMaxPacketSize */
-    0x02,                     /* 5  wMaxPacketSize */
-    0x01                      /* 6  bInterval */
-};
-
-/* Set language string to US English */
-#define STR_USENG 0x0409
-
-/* String table */
-unsafe
-{
-static char * unsafe stringDescriptors[] =
-{
-    "\x09\x04",                             // Language ID string (US English)
-    "XMOS",                                 // iManufacturer
-    "XMOS BLDC motor driver",     // iProduct
-    "Custom Interface",                     // iInterface
-    "Config",                               // iConfiguration
-};
-}
-
 
 
 interface cdc_if{
@@ -206,22 +45,72 @@ unsafe void resetPointers(XUD_buffers_t &buffer){
     buffer.tx.read1 =  buffer.tx.fifo1;
     buffer.tx.write1 = buffer.tx.fifo1;
 }
+//Only work for CDC class
+unsafe unsigned char* unsafe writeIAD(unsigned char* unsafe ptr , unsigned char intf){
+    memcpy(ptr , IAD_CDC , sizeof(IAD_CDC));
+    ptr[2]=intf; //bFirstInterface
+    return ptr+sizeof(IAD_CDC);
+}
+
+unsafe unsigned char* unsafe writeCDC(unsigned char* unsafe ptr , struct descriptor_t cdc){
+    memcpy(ptr , CDC , sizeof(CDC));
+    ptr[2]= cdc.intf.notification;
+    ptr[21]=cdc.intf.notification;
+    ptr[22]=cdc.intf.data;
+    ptr[30]=cdc.EP.notification;
+    ptr[37]=cdc.intf.data;
+    ptr[45]=cdc.EP.rx;
+    ptr[52]=cdc.EP.tx | 0x80;
+    return ptr+sizeof(CDC);
+
+}
+
 
 /* Endpoint 0 handling both std USB requests and CDC class specific requests */
 unsafe void Endpoints(server interface cdc_if cdc[] , chanend chan_ep_out[] , XUD_buffers_t &buffer)
 {
 
+    struct descriptor_t cdc_desc;
+
+    unsafe{
+        unsigned char* unsafe ptr = &cfgDesc[cfgDescHeadSize];
+#if(N_CDC>0)
+        // memcpy(ptr , IAD_BULK , sizeof(IAD_BULK));
+        // ptr += sizeof(IAD_BULK);
+         devDesc[4] = 0xEF;  /* 4  bDeviceClass - USB Class for IAD*/
+         devDesc[5] = 0x02;  /* 5  bDeviceSubClass*/
+         devDesc[6] = 0x01;
+#endif
+        memcpy( ptr , cfgBulkDesc , sizeof(cfgBulkDesc)); //Interface 0
+        ptr += sizeof(cfgBulkDesc);
+
+        const int offset=1;
+        for(int i=0; i<N_CDC ; i++){
+            int i2=2*i;
+            cdc_desc.intf.notification=  i2+  offset; //Interface 1,3,5
+            cdc_desc.intf.data =         i2+1+offset; //Interface 2,4,6
+            cdc_desc.EP.notification =   i2+1+offset; //EP 2,4,6,8
+            cdc_desc.EP.rx =             i+1+ offset; //EP 2,3,4,5,6
+            cdc_desc.EP.tx =             i2+2+offset; //EP 3,5,7,9
+            ptr = writeIAD(ptr , cdc_desc.intf.notification); // ( 1,3,5,7) //First interface
+            ptr = writeCDC(ptr , cdc_desc);
+        }
+    }
+
     USB_SetupPacket_t sp;
     XUD_BusSpeed_t usbBusSpeed;
     buffer.reset_N =1;
 
-    unsigned char sbuffer[120];
+    unsigned char sbuffer[120]={0};
     unsigned length;
     XUD_Result_t result;
     XUD_SetReady_Out(buffer.rx.ep[0] , sbuffer);
 
     XUD_SetReady_Out(buffer.rx.ep[1], (char*) buffer.rx.fifo1);
-    //XUD_SetReady_Out(buffer.rx.ep[2], (buffer.rx.fifo2 , unsigned char []));
+#if(N_CDC>0)
+    XUD_SetReady_Out(buffer.rx.ep[2], (char*) buffer.rx.fifo2);
+#endif
+//XUD_SetReady_Out(buffer.rx.ep[2], (buffer.rx.fifo2 , unsigned char []));
 
     buffer.rx.pkg_maxSize1=64;
 
@@ -233,32 +122,71 @@ unsafe void Endpoints(server interface cdc_if cdc[] , chanend chan_ep_out[] , XU
         select{
           // XUD_GetSetupData (chanend c, XUD_ep ep, REFERENCE_PARAM(unsigned, length), REFERENCE_PARAM(XUD_Result_t, result));
         case XUD_GetSetupData_Select( chan_ep_out[0] , buffer.rx.ep[0] , length , result):
-            if (result == XUD_RES_OKAY) {
-                //printstrln("XUD_RES_OKAY");
-                USB_ParseSetupPacket(sbuffer, sp);
-                  result = USB_StandardRequests(buffer.rx.ep[0], buffer.tx.ep[0], devDesc,
-                          sizeof(devDesc), cfgDesc, sizeof(cfgDesc),
-                          null, 0,
-                          null, 0,
-                          stringDescriptors, sizeof(stringDescriptors)/sizeof(stringDescriptors[0]),
-                          sp, usbBusSpeed);
-         }
+                USB_ParseSetupPacket(sbuffer, sp); // Data in sbuffer
+        if(result== XUD_RES_OKAY){
+              printf("SetupData OK\n");
+              /* Set result to ERR, we expect it to get set to OKAY if a request is handled */
+              result = XUD_RES_ERR;
+              /* Stick bmRequest type back together for an easier parse... */
+#if N_CDC>0
+              unsigned bmRequestType = (sp.bmRequestType.Direction<<7) |
+                      (sp.bmRequestType.Type<<5) |
+                      (sp.bmRequestType.Recipient);
+              if ((bmRequestType == USB_BMREQ_H2D_STANDARD_DEV) &&
+                      (sp.bRequest == USB_SET_ADDRESS))
+              {  /* Host has set device address, value contained in sp.wValue*/
+                 printf("set device address:%d\n",sp.wValue);
+              }
+              /* Inspect for CDC Communications Class interface num */
+              if(sp.wIndex == 0){
 
-         /* USB bus reset detected, reset EP and get new bus speed */
-             if(result == XUD_RES_RST)
-                {
-                    usbBusSpeed = XUD_ResetEndpoint(buffer.rx.ep[0], buffer.tx.ep[0]);
-#if(DEBUG_RESET)
-                    printstrln("XUD_RES_RST");
+                  switch(bmRequestType)
+                  {
+                  /* Direction: Device-to-host and Host-to-device
+                   * Type: Class
+                   * Recipient: Interface
+                   */
+                  case USB_BMREQ_H2D_CLASS_INT:
+                  case USB_BMREQ_D2H_CLASS_INT:
+
+                      /* Returns  XUD_RES_OKAY if handled,
+                       *          XUD_RES_ERR if not handled,
+                       *          XUD_RES_RST for bus reset */
+                      result = ControlInterfaceClassRequests(buffer.rx.ep[0], buffer.tx.ep[0], sp);
+                      printf("ControlInterfaceClassRequests=%d" , result);
+                  break;
+                  default:
+                      printf("WARNING: Unknown bmRequestType:%d , MASK:0x%x bRequest:%d\n" , bmRequestType , USB_BMREQ_D2H_CLASS_INT ,sp.bRequest);
+                      break;
+                  }
+              }//if
+              else
+                printf("wTindex=0x%x\n",sp.wIndex);
+
 #endif
-                }
-             if(result == XUD_RES_ERR)
-                 printstr("XUD_RES_ERROR");
+              //break;
+        }
+        if(result == XUD_RES_ERR){
+             printf("USB_StandardRequests for enumeration\n");
+             result = USB_StandardRequests(buffer.rx.ep[0], buffer.tx.ep[0], devDesc,
+                     sizeof(devDesc), cfgDesc, sizeof(cfgDesc),
+                     null, 0,
+                     null, 0,
+                     stringDescriptors, sizeof(stringDescriptors)/sizeof(stringDescriptors[0]),
+                     sp, usbBusSpeed);
+        }
+        if(result==XUD_RES_RST)
+            usbBusSpeed = XUD_ResetEndpoint(buffer.rx.ep[0], buffer.tx.ep[0]);
 
-             XUD_SetReady_Out(buffer.rx.ep[0] , sbuffer);
+        memset(sbuffer , 0 , sizeof(sbuffer));
+        XUD_SetReady_Out(buffer.rx.ep[0] , sbuffer);
+
+        //switch
+        //XUD_SetReady_Out(buffer.rx.ep[0] , sbuffer);
+
         break;
 // Get DATA
-        case XUD_GetData_Select(chan_ep_out[1],  buffer.rx.ep[1] , length ,result):
+          case XUD_GetData_Select(chan_ep_out[1],  buffer.rx.ep[1] , length ,result):
                         length /=sizeof(int);
 #if(DEBUG == 1)
         printf("EP: GetData, len=%d\n" , length);
@@ -356,7 +284,7 @@ typedef struct{
     union rx_u data;
 }rx_t;
 
-unsafe void cdc_handler1(client interface cdc_if cdc , client interface gui_if gui , chanend c_ep_in, XUD_buffers_t * unsafe buff){
+unsafe void cdc_handler1(client interface cdc_if cdc , client interface gui_if gui , chanend c_ep_in[], XUD_buffers_t * unsafe buff){
     XUD_Result_t result;
     rx_t* rx = (rx_t*) buff->rx.read1;
     float prod;
@@ -394,7 +322,6 @@ unsafe void cdc_handler1(client interface cdc_if cdc , client interface gui_if g
                      cdc.writeblock( block[block_i]);
                      block_i =! block_i;
                      gui.writeBlockToHost( block[block_i]); // prepare next block
-
                     }
 
                     break;
@@ -426,7 +353,7 @@ unsafe void cdc_handler1(client interface cdc_if cdc , client interface gui_if g
             }
             cdc.queue_empty();
             break;
-            case XUD_SetData_Select(c_ep_in,  buff->tx.ep[1] , result):
+            case XUD_SetData_Select(c_ep_in[1],  buff->tx.ep[1] , result):
                 if(result == XUD_RES_RST){
                     result = XUD_ResetEndpoint(buff->tx.ep[1] , null);
 #if(DEBUG_RESET)
@@ -444,6 +371,10 @@ unsafe void cdc_handler1(client interface cdc_if cdc , client interface gui_if g
                     gui.writeBlockToHost( block[block_i]);
                 }
              break;
+#if N_CDC>0
+            case XUD_SetData_Select(c_ep_in[3],  buff->tx.ep[3] , result):
+#endif
+                    break;
         }//select
     }
 }
@@ -459,24 +390,56 @@ void usb_server(client interface gui_if gui){
             xud(c_ep_out, XUD_EP_COUNT_OUT, c_ep_in, XUD_EP_COUNT_IN , null ,  XUD_SPEED_HS, XUD_PWR_SELF);
             {
                 //Init all endpoints in XUD
-                buffer.rx.ep[0]= XUD_InitEp(c_ep_out[0], XUD_EPTYPE_CTL | XUD_STATUS_ENABLE);
-                for(int i=1 ; i <XUD_EP_COUNT_OUT; i++)
-                    buffer.rx.ep[i] = XUD_InitEp(c_ep_out[i] , XUD_EPTYPE_BUL | XUD_STATUS_ENABLE);
+                int etype;
+                for(int i=0 ; i <XUD_EP_COUNT_OUT; i++){
+                    switch(i){
+                    case 0:
+                        etype= XUD_EPTYPE_CTL | XUD_STATUS_ENABLE;
+                        break;
+                    case 1:
+                        etype = XUD_EPTYPE_BUL | XUD_STATUS_ENABLE;
+                        break;
+                    default:
+                        etype = XUD_EPTYPE_BUL;
+                        break;
 
-                buffer.tx.ep[0]  = XUD_InitEp(c_ep_in[0] , XUD_EPTYPE_CTL | XUD_STATUS_ENABLE);
-                for(int i=1 ; i <XUD_EP_COUNT_IN; i++)
-                    buffer.tx.ep[i]  = XUD_InitEp(c_ep_in[i]  , XUD_EPTYPE_BUL | XUD_STATUS_ENABLE);
+                    }
+                    buffer.rx.ep[i] = XUD_InitEp(c_ep_out[i] , etype);
+                }// for
+
+                for(int i=0 ; i <XUD_EP_COUNT_IN; i++){
+                    switch(i){
+                    case 0:
+                        etype= XUD_EPTYPE_CTL | XUD_STATUS_ENABLE;
+                        break;
+                    case 1:
+                        etype= XUD_EPTYPE_BUL | XUD_STATUS_ENABLE;
+                        break;
+                    case 2:
+                        etype= XUD_EPTYPE_INT; //Only used for setup !?
+                        break;
+                    case 3:
+                        etype= XUD_EPTYPE_BUL;
+                        break;
+                    default:
+                        etype = i&1 ? XUD_EPTYPE_BUL : XUD_EPTYPE_INT;
+                        break;
+                    }
+                    buffer.tx.ep[i]  = XUD_InitEp(c_ep_in[i]  , etype );
+                } // for
 
                 XUD_buffers_t* unsafe buffer_ptr = &buffer;
                 par{
                     Endpoints(cdc , c_ep_out ,  buffer);
-                    cdc_handler1(cdc[0] , gui , c_ep_in[1] , buffer_ptr);
+                    cdc_handler1(cdc[0] , gui , c_ep_in , buffer_ptr);
                 }
 
-            }
+            }//guards
         }
     }
 }
+
+
 
 
 void gui_server(server interface gui_if gui){
