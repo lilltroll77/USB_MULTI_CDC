@@ -16,7 +16,11 @@ USED_MODULES = lib_usb
 # XCC_XC_FLAGS, XCC_C_FLAGS, XCC_ASM_FLAGS, XCC_CPP_FLAGS
 # If the variable XCC_MAP_FLAGS is set it overrides the flags passed to
 # xcc for the final link (mapping) stage.
+# DO NOT TOUCH THIS!
 XCC_FLAGS = -Wall -O3 -report -DXUD_SERIES_SUPPORT=XUD_X200_SERIES -g -DUSB_TILE=tile[1]
+# INSTEAD ADD
+#XCC_FLAGS_transfer_block.xc = -Wall -O0 -g
+
 
 # The XCORE_ARM_PROJECT variable, if set to 1, configures this
 # project to create both xCORE and ARM binaries.

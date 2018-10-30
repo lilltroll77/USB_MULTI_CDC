@@ -11,7 +11,7 @@
 
 #define BCD_DEVICE              0x1000
 #define VENDOR_ID               0x20B1
-#define PRODUCT_ID              0x00DF
+#define PRODUCT_ID              0x00DA
 #define MANUFACTURER_STR_INDEX  0x0001
 #define PRODUCT_STR_INDEX       0x0002
 
@@ -118,7 +118,7 @@ static unsigned char CDC[]={
 /*50*/     0x07,                     /* 0  bLength */
            USB_DESCTYPE_ENDPOINT,    /* 1  bDescriptorType */
            UPDATE,                   /* 2  bEndpointAddress */ //!!UPDATE@52!!
-           0x02,                     /* 3  bmAttributes */
+           0x02,          /* 3  bmAttributes */
            0x00,                     /* 4  wMaxPacketSize - Low byte */
            0x02,                     /* 5  wMaxPacketSize - High byte */
            0x01                      /* 6  bInterval */
@@ -187,6 +187,7 @@ static unsigned char MSOS20PlatformCapabilityDescriptor[] =
 };
 
 
+#define USB_Isochronous 0b01 // async see https://www.beyondlogic.org/usbnutshell/usb5.shtml#EndpointDescriptors
 
 static unsigned char cfgBulkDesc[]=
 {
@@ -211,10 +212,10 @@ static unsigned char cfgBulkDesc[]=
     0x07,                     /* 0  bLength */
     0x05,                     /* 1  bDescriptorType */
     0x81,                     /* 2  bEndpointAddress */  //EP1
-    0x02,                     /* 3  bmAttributes */
-    0x00,                     /* 4  wMaxPacketSize */
-    0x02,                     /* 5  wMaxPacketSize */
-    0x01                      /* 6  bInterval */
+    0x02,                     /* 3  bmAttributes */ //BULK MODE see https://www.beyondlogic.org/usbnutshell/usb5.shtml#EndpointDescriptors
+    PKG_SIZE & 0xFF,          /* 4  wMaxPacketSize */
+    PKG_SIZE>>8,              /* 5  wMaxPacketSize */
+    0x01                      /* 6  bInterval */ //must be 1 for ISO
 };
 
 #define cfgDescHeadSize 9
