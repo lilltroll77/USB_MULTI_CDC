@@ -23,6 +23,8 @@ unsafe void gui_server(streaming chanend c_from_RX , streaming chanend c_from_ds
         c_from_RX <: fast->IA;
         c_from_RX <: fast->IC;
         c_from_RX <: fast->QE;
+        c_from_RX <: fast->Torque;
+        c_from_RX <: fast->Flux;
         c_from_RX <: fast->angle;
   /*      c_from_RX <: *fast; fast++;
         c_from_RX <: *fast; fast++;

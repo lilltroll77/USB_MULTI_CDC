@@ -30,6 +30,8 @@ unsafe void RX_block(streaming chanend c_from_gui , streaming chanend c_from_CDC
             c_from_gui :> fast->IA[i]; //printintln(mem->fast.IA[fast]);
             c_from_gui :> fast->IC[i];
             c_from_gui :> fast->QE[i];
+            c_from_gui :> fast->Torque[i];
+            c_from_gui :> fast->Flux[i];
             c_from_gui :> fast->angle[i];
    /*         c_from_gui :> int _;
             c_from_gui :> int _;
