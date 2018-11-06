@@ -17,6 +17,8 @@
 
 #define PKG_SIZE 512 /*In bytes*/
 
+#define codeVersion 1
+
 union rx_u{
     int stream;
 };
@@ -106,9 +108,6 @@ struct lowspeed_t{
     int reserved8;
     int reserved9;
     int reserved10;
-    int reserved11;
-    int reserved12;
-    int reserved13;
 };
 
 
@@ -123,7 +122,7 @@ struct midspeed_t{
     int reserved4;
 };
 
-struct midspeed_vecotr_t{
+struct midspeed_vector_t{
     int pos[PKG_SIZE/32];
     int vel[PKG_SIZE/32];
     int perror[PKG_SIZE/32];
@@ -154,10 +153,12 @@ struct hispeed_vector_t{
 };
 
 struct USBmem_t{
-    unsigned checknumber;
-    unsigned index;
-    struct lowspeed_t slow;
-    struct midspeed_vecotr_t mid;
+    unsigned long long checknumber; //2
+    unsigned version; //3
+    unsigned index; //4
+    float temp; //5
+    unsigned reserved[16-5]; // UPDATE if new line is inserted
+    struct midspeed_vector_t mid;
     struct hispeed_vector_t fast;
 };
 

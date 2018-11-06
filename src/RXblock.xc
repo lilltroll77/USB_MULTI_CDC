@@ -10,11 +10,15 @@
 unsafe void RX_block(streaming chanend c_from_gui , streaming chanend c_from_CDC){
     //Readble version without full pointer maniac
     //set_core_fast_mode_off();
+    unsigned long long pi = 3141592543358979324ull;
+    //printullongln(pi);
     unsigned mid , i , blockNumber;
     int block=0;
     struct USBmem_t USBmem[2]={0};
-    USBmem[0].checknumber = 3141592543;
-    USBmem[1].checknumber = 3141592543;
+    USBmem[0].checknumber = pi;
+    USBmem[1].checknumber = pi;
+    USBmem[0].version = codeVersion;
+    USBmem[1].version = codeVersion;
     //printf("RX:i=%d mid=%d fast=%d\n" , i , mid , fast );
     char ct;
     struct hispeed_vector_t* unsafe fast;

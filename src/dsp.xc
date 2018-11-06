@@ -42,14 +42,14 @@ unsafe void DSP(streaming chanend c_from_GUI , chanend c_from_CDC){ //Emulates d
                 crc32((rnd1 , unsigned) ,t1, poly);
                 crc32((rnd2 , unsigned) ,t1, poly);
 
-                mem->fast.IA = sin_tbl[dsp_counter] + (rnd1>>24);
+                mem->fast.IA = sin_tbl[dsp_counter] + (rnd1>>20);
 
-                mem->fast.IC = sin_tbl[dsp_counter+(SIN_LEN/3)]+ (rnd2>>24);
+                mem->fast.IC = sin_tbl[dsp_counter+(SIN_LEN/3)]+ (rnd2>>20);
                 mem->fast.QE =  dsp_counter;
                 mem->fast.angle  = (dsp_counter+100) & (SIN_LEN-1);
 
-                mem->fast.Flux =   ((int)bitrev(rnd1)>>24);
-                mem->fast.Torque = ((int)bitrev(rnd2)>>24) + 4096;
+                mem->fast.Flux =   ((int)bitrev(rnd1)>>20);
+                mem->fast.Torque = ((int)bitrev(rnd2)>>20) + 4096;
 
 
                 dsp_counter = (dsp_counter+1)&(SIN_LEN-1);

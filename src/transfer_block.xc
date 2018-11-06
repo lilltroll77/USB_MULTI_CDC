@@ -26,8 +26,8 @@ unsafe void RX_block(streaming chanend c ,  struct USBmem_t* unsafe mem , unsign
     case Slow:
         int slow;
         c :> slow; //pos
-        c :> (mem->slow , int[])[slow];
-        slow = (slow+1)% sizeof(mem->slow)/4;
+      //  c :> (mem->slow , int[])[slow];
+      //  slow = (slow+1)% sizeof(mem->slow)/4;
         break;
     case Pos:
         c :> mem->mid.pos[mid];
