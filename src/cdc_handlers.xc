@@ -11,13 +11,15 @@
 
 
 
-unsafe void cdc_handler1(client interface cdc_if cdc , chanend c_from_dsp , streaming chanend c_from_RX  , chanend c_ep_in[], XUD_buffers_t * unsafe buff){
+unsafe void cdc_handler1(client interface cdc_if cdc , chanend c_from_dsp , streaming chanend c_from_RX, chanend c_temp  , chanend c_ep_in[],XUD_buffers_t * unsafe buff){
     XUD_Result_t result;
     rx_t* rx = (rx_t*) buff->rx.read1;
     int buffer_writing2host=InEPready;
     int first;
     unsigned blockNumber;
     char* unsafe writePtr;
+    struct USBmem_t* unsafe USBmem;
+    c_from_RX :> USBmem;
     while(1){
         select{
         case c_from_RX :> writePtr:
@@ -36,6 +38,10 @@ unsafe void cdc_handler1(client interface cdc_if cdc , chanend c_from_dsp , stre
             }
             else
                 buffer_writing2host = BufferReadyToWrite; // Redundat ??
+        break;
+        case c_temp:> USBmem[0].temp:
+        USBmem[1].temp = USBmem[0].temp;
+        //printf("%f\n",USBmem[0].temp);
         break;
         case cdc.data_available():
             while(buff->rx.queue_len1 > 0){

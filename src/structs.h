@@ -97,7 +97,7 @@ struct descriptor_t{
 enum pos_e{Slow , Pos , Vel , Perror , Reserved1 , Reserved2 , Reserved3 , Reserved4};
 
 struct lowspeed_t{
-    int temp;
+    float temp;
     int reserved1; // Replace with real signal
     int reserved2;
     int reserved3;

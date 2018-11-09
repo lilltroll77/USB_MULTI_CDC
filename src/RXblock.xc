@@ -21,6 +21,7 @@ unsafe void RX_block(streaming chanend c_from_gui , streaming chanend c_from_CDC
     USBmem[1].version = codeVersion;
     //printf("RX:i=%d mid=%d fast=%d\n" , i , mid , fast );
     char ct;
+    c_from_CDC <: (struct USBmem_t* unsafe) &USBmem[0];
     struct hispeed_vector_t* unsafe fast;
     while(1){
         select{
