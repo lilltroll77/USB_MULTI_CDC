@@ -153,7 +153,7 @@ unsafe void Endpoints(server interface cdc_if cdc[] , chanend chan_ep_out[] , XU
         break;
 // Get DATA
           case XUD_GetData_Select(chan_ep_out[1],  buffer.rx.ep[1] , length ,result):
-                        length /=sizeof(int);
+
 #if(DEBUG == 1)
         printf("EP: GetData, len=%d\n" , length);
 #endif
@@ -170,12 +170,10 @@ unsafe void Endpoints(server interface cdc_if cdc[] , chanend chan_ep_out[] , XU
         if(result == XUD_RES_ERR)
             printf("EP: !! error!! in GETDATA");
         else if(result == XUD_RES_OKAY){
-            //buffer.tx.reset=0; // release block
             buffer.rx.queue_len1++;
             cdc[0].data_available();
-            //char* write = (char*)buffer.rx.write1;
-            //*write+= length;                // move write pointer !! length is in bytes !!
-            buffer.rx.write1 +=length/sizeof(buffer.rx.write1);
+           //*write+= length;                // move write pointer !! length is in bytes !!
+            buffer.rx.write1 +=length /=sizeof(int);
 
           //reseting RX write
             if( buffer.rx.write1 >= buffer.rx.fifo2 - buffer.rx.pkg_maxSize1){ //does it risk to start writing into fifo2?

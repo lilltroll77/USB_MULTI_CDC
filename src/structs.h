@@ -19,20 +19,54 @@
 
 #define codeVersion 1
 
-union rx_u{
-    int stream;
+struct PI_section_t{
+    float Fc;
+    float Gain;
+    int P;
+    int I;
 };
 
-struct header_t{
-    int command;
+enum filterType_t{Lead , Lead2 , Lag , Lag2 , Notch , AllPass , /* DISABLED ->*/ LP1 , LP2 , HP1 , HP2 , BandPass , PeakingEQ, Mute};
+
+struct EQ_section_t{
+        int active;
+        enum filterType_t type;
+        float Fc;
+        float Q;
+        float Gain;
+        int B0;
+        int B1;
+        int B2;
+        int A1;
+        int A2;
 };
+
+struct USB_PIsection_t{
+    int channel;
+    struct PI_section_t section;
+};
+
+struct USB_EQsection_t{
+    int channel;
+    int section;
+    struct EQ_section_t data;
+};
+
 
 typedef struct{
-    struct header_t header;
-    union rx_u data;
+    int command;
+    int data[127];
 }rx_t;
 
 
+struct channel_setting_t{
+    struct PI_section_t PI;
+    struct EQ_section_t Eq[2];
+};
+
+struct master_setting_t{
+    struct channel_setting_t channel[2];
+};
 
 //recieve data from host -OUT
 struct XUDbufferRx_t{
@@ -167,6 +201,7 @@ struct DSPmem_t{
     struct midspeed_t mid;
     struct hispeed_t fast;
 };
+
 
 
 

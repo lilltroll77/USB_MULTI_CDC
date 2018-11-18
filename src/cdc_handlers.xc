@@ -6,14 +6,18 @@
  */
 
 #include <stdio.h>
+#include <math.h>
 #include "structs.h"
 #include "cdc_handlers.h"
+#include "calc.h"
 
 
 
+
+//cdc data is queued on a FIFO
 unsafe void cdc_handler1(client interface cdc_if cdc , chanend c_from_dsp , streaming chanend c_from_RX, chanend c_temp  , chanend c_ep_in[],XUD_buffers_t * unsafe buff){
     XUD_Result_t result;
-    rx_t* rx = (rx_t*) buff->rx.read1;
+    struct master_setting_t settings;
     int buffer_writing2host=InEPready;
     int first;
     unsigned blockNumber;
@@ -49,33 +53,52 @@ unsafe void cdc_handler1(client interface cdc_if cdc , chanend c_from_dsp , stre
                 printf("CDC commad:%d , queue depth=%d ,read-pos = %d\n" , rx->header.command , buff->rx.queue_len1 , buff->rx.read1 - buff->rx.fifo1);
                 printf("CDC IN: %f\n" , rx->data.a);
 #endif
-                switch(rx->header.command){
+                switch(*buff->rx.read1++){
                  case streamOUT:
-                    first=4;
+                    int state = *buff->rx.read1++;
                     soutct(c_from_RX , 5); // Reset all states in RX
-                    if(rx->data.stream)
+                    if(state)
                         printf("stream out: ON\n");
                     else
                         printf("stream out: OFF\n");
-                    c_from_dsp <: rx->data.stream; //Tell dsp core to start/stop sending sync signals
+                        c_from_dsp <: streamOUT;
+                        c_from_dsp <: state; //Tell dsp core to start/stop sending sync signals
 
                 break;
+                 case PIsection:{
+                     struct USB_PIsection_t* usbData = (struct USB_PIsection_t*) buff->rx.read1;
+                     int ch = usbData->channel;
+//                   printf("Ch:%d:Fc=%.1f Gain=%.1f\n" , ch, usbData->section.Fc , usbData->section.Gain);
+                     struct PI_section_t* PI =  &settings.channel[ch].PI;
+                     PI->Fc =  usbData->section.Fc;
+                     PI->Gain = usbData->section.Gain;
+                     calcPI_fixedpoint(c_from_dsp , *PI , ch);
+                     buff->rx.read1 += sizeof(usbData)/(sizeof(int));
+                 }
+                     break;
+                 case EQsection:{
+                     int i;
+                     c_from_dsp <: EQsection;
+                     master{
+                         c_from_dsp <:  buff->rx.read1[0];
+                         c_from_dsp <:  buff->rx.read1[1];
+                         for(i=8 ; i< 13 ; i++)
+                             c_from_dsp <: buff->rx.read1[i];
+                     }
+                     buff->rx.read1 +=i;
+                     }
+                     break;
                 default:
-                    printf("Unknown command: %d\n" , rx->header.command);
+                    printf("Unknown command\n");
                     break;
                 }
-                buff->tx.write1++;
-                //RESETTING TX Write ptr ?
-                if(buff->tx.write1 == buff->tx.fifo2){  //reached fifo2 ?
-                    buff->tx.write1 = buff->tx.fifo1;  //reset to start of FIFO1
+
+
 #if(DEBUG)
                     printf("CDC: Reset RX write pos\n");
 #endif
-                }
 
-                buff->rx.read1++; // update RX read pos with size of rx size
-                //RESETTING RX Read ptr
-                //printf("%d > %d\n",buff->rx.read1 , buff->rx.fifoLen1);
+
                 if(buff->rx.read1 >= buff->rx.fifoLen1){  //Passed last written place in FIFO
                     buff->rx.read1 = buff->rx.fifo1;      //reset to start of FIFO1
 
