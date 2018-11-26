@@ -25,13 +25,14 @@ void Thermometer(chanend c_temp){
 }
 
 int main(){
-    streaming chan sc_dsp2GUI , sc_GUI2RX;
-    chan c_dsp2CDC , c_temp;
+    streaming chan sc_dsp2GUI , sc_GUI2RX , c_dsp2CDC , c_dsp2LMS;
+    chan c_temp;
         par{
 
             on tile[0]: unsafe{
             par{
-                DSP(sc_dsp2GUI , c_dsp2CDC);
+                MLSgen(c_dsp2LMS);
+                DSP(sc_dsp2GUI , c_dsp2CDC , c_dsp2LMS);
                 gui_server(sc_GUI2RX , sc_dsp2GUI );
                 Thermometer(c_temp);
             }}

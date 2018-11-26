@@ -6,16 +6,18 @@
  */
 
 #include <stdio.h>
+#include "print.h"
 #include <math.h>
 #include "structs.h"
 #include "cdc_handlers.h"
 #include "calc.h"
+#include "dsp.h"
 
 
 
 
 //cdc data is queued on a FIFO
-unsafe void cdc_handler1(client interface cdc_if cdc , chanend c_from_dsp , streaming chanend c_from_RX, chanend c_temp  , chanend c_ep_in[],XUD_buffers_t * unsafe buff){
+unsafe void cdc_handler1(client interface cdc_if cdc , streaming chanend c_from_dsp , streaming chanend c_from_RX, chanend c_temp  , chanend c_ep_in[],XUD_buffers_t * unsafe buff){
     XUD_Result_t result;
     struct master_setting_t settings;
     int buffer_writing2host=InEPready;
@@ -23,7 +25,11 @@ unsafe void cdc_handler1(client interface cdc_if cdc , chanend c_from_dsp , stre
     unsigned blockNumber;
     char* unsafe writePtr;
     struct USBmem_t* unsafe USBmem;
+    struct regulator_t* unsafe reg;
     c_from_RX :> USBmem;
+    c_from_dsp :> reg;
+    printf("CDCin %d" , reg);
+    //printintln(val);
     while(1){
         select{
         case c_from_RX :> writePtr:
@@ -66,30 +72,43 @@ unsafe void cdc_handler1(client interface cdc_if cdc , chanend c_from_dsp , stre
 
                 break;
                  case PIsection:{
-                     struct USB_PIsection_t* usbData = (struct USB_PIsection_t*) buff->rx.read1;
-                     int ch = usbData->channel;
-//                   printf("Ch:%d:Fc=%.1f Gain=%.1f\n" , ch, usbData->section.Fc , usbData->section.Gain);
-                     struct PI_section_t* PI =  &settings.channel[ch].PI;
-                     PI->Fc =  usbData->section.Fc;
-                     PI->Gain = usbData->section.Gain;
-                     calcPI_fixedpoint(c_from_dsp , *PI , ch);
-                     buff->rx.read1 += sizeof(usbData)/(sizeof(int));
+                     int ch = buff->rx.read1[0];
+                     void* unsafe ptr = &reg[ch];
+                     //printf("CDC PI %d\n" , reg);
+                    // struct PI_t* pi = &reg[ch];
+                     {
+                         c_from_dsp  <: PIsection;
+                         c_from_dsp  <: ptr;
+                         c_from_dsp  <: buff->rx.read1[3];
+                         c_from_dsp  <: buff->rx.read1[4];
+                     }
+                     buff->rx.read1 += 5;
                  }
                      break;
                  case EQsection:{
                      int i;
-                     c_from_dsp <: EQsection;
-                     master{
-                         c_from_dsp <:  buff->rx.read1[0];
-                         c_from_dsp <:  buff->rx.read1[1];
-                         for(i=8 ; i< 13 ; i++)
+                     int ch =  buff->rx.read1[0];
+                     int sec = buff->rx.read1[1];
+                     void* unsafe ptr = &reg[ch].EQ[sec];
+                     //printf("CDC EQ %d\n" , reg);
+                    c_from_dsp <: EQsection;
+                     c_from_dsp <:  ptr;
+#pragma loop unroll
+                     {
+
+                         for(i=8 ; i< 11 ; i++)
                              c_from_dsp <: buff->rx.read1[i];
+                         for(i ; i< 13 ; i++)
+                             c_from_dsp <: -buff->rx.read1[i]; //Invert A coeffs
                      }
+                     c_from_dsp <: buff->rx.read1[i];
+                     i++;
+
                      buff->rx.read1 +=i;
                      }
                      break;
                 default:
-                    printf("Unknown command\n");
+                    printf("Unknown command %d %d %d\n" , buff->rx.read1[0] , buff->rx.read1[1],buff->rx.read1[2]);
                     break;
                 }
 

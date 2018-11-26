@@ -23,7 +23,7 @@ unsafe void resetPointers(XUD_buffers_t &buffer){
 }
 
 
-void usb_server(chanend c_dsp2CDC , streaming chanend sc_GUI2RX ,chanend c_temp){
+void usb_server(streaming chanend c_dsp2CDC , streaming chanend sc_GUI2RX ,chanend c_temp){
     chan c_ep_out[XUD_EP_COUNT_OUT], c_ep_in[XUD_EP_COUNT_IN];
     streaming chan sc_CDC2RX;
     interface cdc_if cdc[1];
