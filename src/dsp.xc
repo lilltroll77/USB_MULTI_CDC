@@ -14,14 +14,7 @@
 
 
 
-struct state_t{
-    s64 y1;
-    s64 y2;
-    int x1;
-    int x2;
-    unsigned error;
 
-};
 
 
 struct data64_t{
@@ -46,6 +39,8 @@ void macs96(struct data64_t &y , int &a , int &hi , unsigned &mi , unsigned &lo)
 
 static inline
 int soc(int x , struct EQ_t &eq , struct state_t &s ){
+    if(eq.shift <0)
+        return x;
     int hi;
     unsigned mid , lo;
     {hi , mid}= macs(eq.B2 , s.x2 , 0 , 0);
@@ -80,6 +75,7 @@ int PI(int x, int p , int i , int &hi , unsigned &lo){
     return h+hi;
 }
 
+//https://en.wikipedia.org/wiki/Linear-feedback_shift_register#Some_polynomials_for_maximal_LFSRs
 void MLSgen(streaming chanend c){
     unsigned lfsr=1 ,zero=0;
     unsigned checksum=1;
@@ -111,9 +107,10 @@ void MLSgen(streaming chanend c){
     }
 }
 
+
 unsafe void DSP(streaming chanend c_from_GUI , streaming chanend c_from_CDC  , streaming chanend c_from_MLS){ //Emulates dsp working cores by updating different signals
-    timer tmr1 , tmr2;
-    unsigned t1 , t2;
+    timer tmr1;
+    unsigned t1;
 
 //    int i=0;
 //    int j=0;
@@ -133,9 +130,8 @@ unsafe void DSP(streaming chanend c_from_GUI , streaming chanend c_from_CDC  , s
         for(int j=0; j<2 ; j++){
             reg[i].EQ[j].shift = 30;
             reg[i].EQ[j].B0 = 1<<reg[i].EQ[j].shift;
-            reg[i].P = 1<<24;
         }
-        reg[i].P = 1<<22;
+        reg[i].P = 1;
     }
 
 #define SIN_LEN 8192
@@ -144,31 +140,32 @@ unsafe void DSP(streaming chanend c_from_GUI , streaming chanend c_from_CDC  , s
         sin_tbl[i] = 200*sin(2.0 * M_PI/SIN_LEN * (double)i);
 
     tmr1:> t1;
-    tmr2:> t2;
 
     c_from_CDC <:(int* unsafe) reg;
-    printint((int)reg);
+    c_from_CDC <:(int* unsafe) state;
+    //printint((int)reg);
     int rnd;
-
+    /* This loop priorities speed optimization over code clarity */
     while(1){
         select{
-        case tmr1 when timerafter(t1 + 333):>t1: //300 kHz
-                //https://en.wikipedia.org/wiki/Linear-feedback_shift_register#Some_polynomials_for_maximal_LFSRs
+            //Priority: always perform at least one dsp-loop cycle between each transaction from CDC
+        default:
+            tmr1 when timerafter(t1 + 333):>t1; //300 kHz
 
                 mem = &dsp_memory[block];
                 //DSP code below
 
                 c_from_MLS :> rnd;
 
-                int s0 = -mem->fast.IA;
+                int s0 = -mem->fast.IA; //Negative feedback
                 s0 = PI( s0 , reg[0].P , reg[0].I , Int[0].hi , Int[0].lo);
                 s0 = soc(s0 , reg[0].EQ[0] , state[0] );
                 mem->fast.IA = soc(s0, reg[0].EQ[1] , state[1] ) + rnd; // inject disturbance
 
-                int s1 = -mem->fast.IC;
+                int s1 = -mem->fast.IC; //Negative feedback
                 s1 = PI(s1 , reg[1].P , reg[1].I , Int[1].hi , Int[1].lo);
                 s1 = soc(s1 , reg[1].EQ[0] , state[2] );
-                mem->fast.IC = soc(s1, reg[1].EQ[1] , state[3] ) - rnd;
+                mem->fast.IC = soc(s1, reg[1].EQ[1] , state[3] ) - rnd;  // inject disturbance
 
                 mem->fast.QE =  dsp_counter;
                 mem->fast.angle  = (dsp_counter+100) & (SIN_LEN-1);
@@ -183,10 +180,6 @@ unsafe void DSP(streaming chanend c_from_GUI , streaming chanend c_from_CDC  , s
                 block = !block;
                 break;
 
-   /*      case tmr2 when timerafter(t2 + 1e7):>t2:  //10Hz
-                 mem->slow.temp = (mem->slow.temp+1)&0x3FF;
-                break;
-                */
         case c_from_CDC :> int cmd:
             switch(cmd){
             case streamOUT:
@@ -194,29 +187,43 @@ unsafe void DSP(streaming chanend c_from_GUI , streaming chanend c_from_CDC  , s
                 dsp_counter=0;
                 break;
             case PIsection:
-                    int* unsafe ptr;
-                    c_from_CDC :> ptr;
-                    //printf("PI %d\n" , ptr);
-                    c_from_CDC :> ptr[1];
-                    c_from_CDC :> ptr[0];
-                    //printf("P=%d I=%d\n" , ptr[1] , ptr[0]);
+                    struct regulator_t* unsafe reg_ptr;
+                    c_from_CDC :> reg_ptr;
+                    c_from_CDC :> reg_ptr->P;
+                    c_from_CDC :> reg_ptr->I;
+                    //printf("P=%d I=%d\n" , reg_ptr->P , reg_ptr->I);
 
                 break;
             case EQsection:
-                    int* unsafe ptr;
-                    c_from_CDC :> ptr;
+                     struct EQ_t* unsafe eq;
+                    c_from_CDC :> eq;
                     //printf("EQ %d\n" , ptr);
-                    c_from_CDC :> ptr[0];
-                    c_from_CDC :> ptr[1];
-                    c_from_CDC :> ptr[2];
-                    c_from_CDC :> ptr[3];
-                    c_from_CDC :> ptr[4];
-                    c_from_CDC :> ptr[5];
+                    c_from_CDC :> eq->B0;
+                    c_from_CDC :> eq->B1;
+                    c_from_CDC :> eq->B2;
+                    c_from_CDC :> eq->A1;
+                    c_from_CDC :> eq->A2;
+                    c_from_CDC :> eq->shift;
+                    // Verified that above compiles to imediate stw instructions
 #if(0)
-                     printf("B0=%d, B1=%d, B2=%d, A1=%d, A2=%d\n" ,
-                             ptr[0] , ptr[1], ptr[2], ptr[3], ptr[4]);
+                     printf("B0=%d, B1=%d, B2=%d, A1=%d, A2=%d Shift=%d\n" ,
+                             eq->B0 , eq->B1, eq->B2, eq->A1, eq->A2 , shift);
 #endif
 
+                break;
+            case resetPI:
+                int ch;
+                c_from_CDC :> ch;
+                (Int[ch] , long long )=0; //reset first 64 bits
+                //printf("Reset ch:%d\n", ch);
+                break;
+            case resetEQsec:
+                s64* unsafe ptr;
+                c_from_CDC :> ptr;
+                ptr[0]=0; //y1
+                ptr[1]=0; //y2
+                ptr[2]=0; //x1,x2
+                ((int*)ptr)[6]=0; //error
                 break;
             }
          break;

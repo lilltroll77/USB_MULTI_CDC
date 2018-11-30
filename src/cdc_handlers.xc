@@ -21,13 +21,13 @@ unsafe void cdc_handler1(client interface cdc_if cdc , streaming chanend c_from_
     XUD_Result_t result;
     struct master_setting_t settings;
     int buffer_writing2host=InEPready;
-    int first;
-    unsigned blockNumber;
     char* unsafe writePtr;
     struct USBmem_t* unsafe USBmem;
     struct regulator_t* unsafe reg;
+    struct state_t* unsafe dsp_state;
     c_from_RX :> USBmem;
     c_from_dsp :> reg;
+    c_from_dsp :> dsp_state;
     printf("CDCin %d" , reg);
     //printintln(val);
     while(1){
@@ -86,9 +86,12 @@ unsafe void cdc_handler1(client interface cdc_if cdc , streaming chanend c_from_
                  }
                      break;
                  case EQsection:{
+                     //see struct USB_EQsection_t in QT usbbulk.h
                      int i;
                      int ch =  buff->rx.read1[0];
                      int sec = buff->rx.read1[1];
+                     int section = 2*ch +sec;
+                     int active = buff->rx.read1[3];
                      void* unsafe ptr = &reg[ch].EQ[sec];
                      //printf("CDC EQ %d\n" , reg);
                     c_from_dsp <: EQsection;
@@ -97,14 +100,32 @@ unsafe void cdc_handler1(client interface cdc_if cdc , streaming chanend c_from_
                      {
 
                          for(i=8 ; i< 11 ; i++)
-                             c_from_dsp <: buff->rx.read1[i];
+                             c_from_dsp <: buff->rx.read1[i];  //B coeffs
                          for(i ; i< 13 ; i++)
                              c_from_dsp <: -buff->rx.read1[i]; //Invert A coeffs
                      }
-                     c_from_dsp <: buff->rx.read1[i];
-                     i++;
+                     if(active)
+                         c_from_dsp <: buff->rx.read1[i]; //shift
+                     else{
+                         c_from_dsp <: -1; //Bypass section...
+                         c_from_dsp <: resetEQsec;
+                         c_from_dsp <: &dsp_state[section];//... and reset states
 
-                     buff->rx.read1 +=i;
+                     }
+                     buff->rx.read1 +=i+1;
+                     }
+                     break;
+                 case resetPI:
+                     c_from_dsp <:resetPI;
+                     c_from_dsp <:buff->rx.read1[0];
+                     buff->rx.read1++;
+                     break;
+                 case resetEQ:
+                     unsafe{
+                         for(int i=0; i<4 ; i++){
+                             c_from_dsp <: resetEQsec;
+                             c_from_dsp <: &dsp_state[i];
+                         }
                      }
                      break;
                 default:
