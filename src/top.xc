@@ -30,12 +30,14 @@ int main(){
         par{
 
             on tile[0]: unsafe{
-            par{
-                MLSgen(c_dsp2LMS);
-                DSP(sc_dsp2GUI , c_dsp2CDC , c_dsp2LMS);
-                gui_server(sc_GUI2RX , sc_dsp2GUI );
-                Thermometer(c_temp);
-            }}
+                struct fuse_t fuse;
+                struct fuse_t* unsafe fuse_ptr = &fuse;
+                par{
+                    MLSgen(c_dsp2LMS);
+                    DSP(sc_dsp2GUI , c_dsp2CDC , c_dsp2LMS , fuse);
+                    gui_server(sc_GUI2RX , sc_dsp2GUI , fuse_ptr );
+                    Thermometer(c_temp);
+                }}
             on tile[1]:usb_server( c_dsp2CDC , sc_GUI2RX ,c_temp);
 
     }

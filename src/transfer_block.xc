@@ -64,17 +64,17 @@ void TX_block(streaming chanend c ,  struct DSPmem_t* unsafe mem , enum pos_e &i
         switch(i){
         case Slow:
             c <: slow; //pos
-            c <: (mem->slow , int[])[slow];
-            slow = (slow+1)& sizeof(mem->slow)-1;
+            //c <: (mem->slow , int[])[slow];
+            //slow = (slow+1)& sizeof(mem->slow)-1;
             break;
         case Pos:
-            c <: mem->mid.pos;
+            //c <: mem->mid.pos;
             break;
         case Vel:
-            c <: mem->mid.vel;
+            //c <: mem->mid.vel;
             break;
         case Perror:
-            c <: mem->mid.perror;
+            //c <: mem->mid.perror;
             break;
         default:
             break;

@@ -191,18 +191,29 @@ struct USBmem_t{
     unsigned version; //3
     unsigned index; //4
     float temp; //5
-    unsigned reserved[16-5]; // UPDATE if new line is inserted
+    int states; //6
+    unsigned reserved[16-6]; // UPDATE if new line is inserted
     struct midspeed_vector_t mid;
     struct hispeed_vector_t fast;
 };
 
+
+
 struct DSPmem_t{
-    struct lowspeed_t slow;
-    struct midspeed_t mid;
     struct hispeed_t fast;
+    //struct lowspeed_t slow;
+    //struct midspeed_t mid;
 };
 
+struct fuse_t{
+    int current;
+    int state;
+};
 
+struct sharedMem_t{
+    struct fuse_t fuse;
+    struct DSPmem_t dsp[2];
+};
 
 
 /*

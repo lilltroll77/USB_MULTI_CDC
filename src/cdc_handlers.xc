@@ -16,6 +16,7 @@
 
 
 
+
 //cdc data is queued on a FIFO
 unsafe void cdc_handler1(client interface cdc_if cdc , streaming chanend c_from_dsp , streaming chanend c_from_RX, chanend c_temp  , chanend c_ep_in[],XUD_buffers_t * unsafe buff){
     XUD_Result_t result;
@@ -28,7 +29,7 @@ unsafe void cdc_handler1(client interface cdc_if cdc , streaming chanend c_from_
     c_from_RX :> USBmem;
     c_from_dsp :> reg;
     c_from_dsp :> dsp_state;
-    printf("CDCin %d" , reg);
+    //printf("CDCin %d" , reg);
     //printintln(val);
     while(1){
         select{
@@ -127,6 +128,35 @@ unsafe void cdc_handler1(client interface cdc_if cdc , streaming chanend c_from_
                              c_from_dsp <: &dsp_state[i];
                          }
                      }
+                     break;
+                 case FuseCurrent:
+                     const float gain = 16384.0f; // for testing
+                     int current = gain*(buff->rx.read1[0] , float);
+                     buff->rx.read1++;
+                     c_from_dsp <: FuseCurrent;
+                     c_from_dsp <: current;
+
+                     break;
+                 case FuseStatus:
+                     int state = buff->rx.read1[0];
+                     buff->rx.read1++;
+                     if(state){
+                         //Reset all states
+                         unsafe{
+                             for(int i=0; i<4 ; i++){
+                                 c_from_dsp <: resetEQsec;
+                                 c_from_dsp <: &dsp_state[i];
+
+                             }
+                             c_from_dsp <:resetPI;
+                             c_from_dsp <:0;
+                             c_from_dsp <:resetPI;
+                             c_from_dsp <:1;
+                         }
+                     }
+                     c_from_dsp <: FuseStatus;
+                     c_from_dsp <: state;
+
                      break;
                 default:
                     printf("Unknown command %d %d %d\n" , buff->rx.read1[0] , buff->rx.read1[1],buff->rx.read1[2]);

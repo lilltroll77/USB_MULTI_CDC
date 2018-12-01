@@ -39,7 +39,7 @@ struct regulator_t{
 
 
 void MLSgen(streaming chanend c);
-unsafe void DSP(streaming chanend c_from_GUI , streaming chanend c_from_CDC , streaming chanend c_from_MLS);
+unsafe void DSP(streaming chanend c_from_GUI , streaming chanend c_from_CDC , streaming chanend c_from_MLS , struct fuse_t &fuse);
 
 
 #endif /* DSP_H_ */

@@ -108,17 +108,17 @@ void MLSgen(streaming chanend c){
 }
 
 
-unsafe void DSP(streaming chanend c_from_GUI , streaming chanend c_from_CDC  , streaming chanend c_from_MLS){ //Emulates dsp working cores by updating different signals
+unsafe void DSP(streaming chanend c_from_GUI , streaming chanend c_from_CDC  , streaming chanend c_from_MLS , struct fuse_t &fuse){ //Emulates dsp working cores by updating different signals
     timer tmr1;
     unsigned t1;
 
 //    int i=0;
 //    int j=0;
-    struct DSPmem_t dsp_memory[2];
+    struct DSPmem_t shared_mem[2];
     struct DSPmem_t* unsafe mem;
     struct state_t state[4];
     struct data64_t Int[2];
-    memset( dsp_memory , 0 , sizeof(dsp_memory));
+    memset( &shared_mem , 0 , sizeof(shared_mem));
     memset( state , 0 , sizeof(state));
     memset( Int   , 0 , sizeof(Int));
     int ctrl=0;
@@ -127,18 +127,15 @@ unsafe void DSP(streaming chanend c_from_GUI , streaming chanend c_from_CDC  , s
     struct regulator_t reg[2];
     memset( reg , 0 , sizeof(reg));
     for(int i=0; i<2 ; i++){
-        for(int j=0; j<2 ; j++){
-            reg[i].EQ[j].shift = 30;
-            reg[i].EQ[j].B0 = 1<<reg[i].EQ[j].shift;
-        }
-        reg[i].P = 1;
-    }
+        for(int j=0; j<2 ; j++)
+            reg[i].EQ[j].shift = -1; //Disable all filters
 
-#define SIN_LEN 8192
-    int sin_tbl[(SIN_LEN*4)/3];
+    }
+   #define SIN_LEN 8192
+    /*    int sin_tbl[(SIN_LEN*4)/3];
     for(int i=0; i < sizeof(sin_tbl)/(sizeof(int)) ; i++)
         sin_tbl[i] = 200*sin(2.0 * M_PI/SIN_LEN * (double)i);
-
+*/
     tmr1:> t1;
 
     c_from_CDC <:(int* unsafe) reg;
@@ -150,36 +147,42 @@ unsafe void DSP(streaming chanend c_from_GUI , streaming chanend c_from_CDC  , s
         select{
             //Priority: always perform at least one dsp-loop cycle between each transaction from CDC
         default:
-            tmr1 when timerafter(t1 + 333):>t1; //300 kHz
+                #pragma unsafe arrays
+                mem = &shared_mem[block];
+                tmr1 when timerafter(t1 + 333):>t1; //300 kHz
 
-                mem = &dsp_memory[block];
                 //DSP code below
-
+                //printint(shared_mem.fuse.state);
                 c_from_MLS :> rnd;
+                if(fuse.state){
 
-                int s0 = -mem->fast.IA; //Negative feedback
-                s0 = PI( s0 , reg[0].P , reg[0].I , Int[0].hi , Int[0].lo);
-                s0 = soc(s0 , reg[0].EQ[0] , state[0] );
-                mem->fast.IA = soc(s0, reg[0].EQ[1] , state[1] ) + rnd; // inject disturbance
+                    int s0 = -mem->fast.IA; //Negative feedback
+                    s0 = PI( s0 , reg[0].P , reg[0].I , Int[0].hi , Int[0].lo);
+                    s0 = soc(s0 , reg[0].EQ[0] , state[0] );
+                    mem->fast.IA = soc(s0, reg[0].EQ[1] , state[1] ) + rnd; // inject disturbance
 
-                int s1 = -mem->fast.IC; //Negative feedback
-                s1 = PI(s1 , reg[1].P , reg[1].I , Int[1].hi , Int[1].lo);
-                s1 = soc(s1 , reg[1].EQ[0] , state[2] );
-                mem->fast.IC = soc(s1, reg[1].EQ[1] , state[3] ) - rnd;  // inject disturbance
+                    int s1 = -mem->fast.IC; //Negative feedback
+                    s1 = PI(s1 , reg[1].P , reg[1].I , Int[1].hi , Int[1].lo);
+                    s1 = soc(s1 , reg[1].EQ[0] , state[2] );
+                    mem->fast.IC = soc(s1, reg[1].EQ[1] , state[3] ) - rnd;  // inject disturbance
+
+                }else{
+                    mem->fast.IA=0;
+                    mem->fast.IC=0;
+                }
 
                 mem->fast.QE =  dsp_counter;
                 mem->fast.angle  = (dsp_counter+100) & (SIN_LEN-1);
-
                 c_from_MLS :> mem->fast.Flux ;
                 c_from_MLS :> mem->fast.Torque;
-
                 dsp_counter = (dsp_counter+1)&(SIN_LEN-1);
 
-                if(ctrl)
-                    c_from_GUI <: mem;
-                block = !block;
-                break;
+                if(ctrl){
+                   c_from_GUI <: mem;
+                   block = !block;
+                }
 
+                break;
         case c_from_CDC :> int cmd:
             switch(cmd){
             case streamOUT:
@@ -224,6 +227,15 @@ unsafe void DSP(streaming chanend c_from_GUI , streaming chanend c_from_CDC  , s
                 ptr[1]=0; //y2
                 ptr[2]=0; //x1,x2
                 ((int*)ptr)[6]=0; //error
+                break;
+            case FuseCurrent:
+                c_from_CDC :> fuse.current;
+                //printintln(fuse.current);
+                break;
+            case FuseStatus:
+                c_from_CDC :>  fuse.state;
+                //printstr("Fuse:");
+                //printintln(fuse.state);
                 break;
             }
          break;
