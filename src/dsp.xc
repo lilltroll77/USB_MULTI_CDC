@@ -142,6 +142,7 @@ unsafe void DSP(streaming chanend c_from_GUI , streaming chanend c_from_CDC  , s
     c_from_CDC <:(int* unsafe) state;
     //printint((int)reg);
     int rnd;
+    int signalsource=0;
     /* This loop priorities speed optimization over code clarity */
     while(1){
         select{
@@ -156,16 +157,28 @@ unsafe void DSP(streaming chanend c_from_GUI , streaming chanend c_from_CDC  , s
                 c_from_MLS :> rnd;
                 if(fuse.state){
 
-                    int s0 = -mem->fast.IA; //Negative feedback
+                 if(signalsource){
+                    int s0 = -mem->fast.IA + rnd; //Negative feedback
                     s0 = PI( s0 , reg[0].P , reg[0].I , Int[0].hi , Int[0].lo);
                     s0 = soc(s0 , reg[0].EQ[0] , state[0] );
-                    mem->fast.IA = soc(s0, reg[0].EQ[1] , state[1] ) + rnd; // inject disturbance
+                    mem->fast.IA = soc(s0, reg[0].EQ[1] , state[1] ); // inject disturbance
 
-                    int s1 = -mem->fast.IC; //Negative feedback
+                    int s1 = -mem->fast.IC+ rnd; //Negative feedback
                     s1 = PI(s1 , reg[1].P , reg[1].I , Int[1].hi , Int[1].lo);
                     s1 = soc(s1 , reg[1].EQ[0] , state[2] );
-                    mem->fast.IC = soc(s1, reg[1].EQ[1] , state[3] ) - rnd;  // inject disturbance
+                    mem->fast.IC = soc(s1, reg[1].EQ[1] , state[3] );  // inject disturbance
+                 }else{
+                     int s0 = -mem->fast.IA ; //Negative feedback
+                     s0 = PI( s0 , reg[0].P , reg[0].I , Int[0].hi , Int[0].lo);
+                     s0 = soc(s0 , reg[0].EQ[0] , state[0] );
+                     mem->fast.IA = soc(s0, reg[0].EQ[1] , state[1] )+ rnd; // inject disturbance
 
+                     int s1 = -mem->fast.IC; //Negative feedback
+                     s1 = PI(s1 , reg[1].P , reg[1].I , Int[1].hi , Int[1].lo);
+                     s1 = soc(s1 , reg[1].EQ[0] , state[2] );
+                     mem->fast.IC = soc(s1, reg[1].EQ[1] , state[3] )- rnd;  // inject disturbance
+
+                 }
                 }else{
                     mem->fast.IA=0;
                     mem->fast.IC=0;
@@ -237,6 +250,8 @@ unsafe void DSP(streaming chanend c_from_GUI , streaming chanend c_from_CDC  , s
                 //printstr("Fuse:");
                 //printintln(fuse.state);
                 break;
+            case SignalSource:
+                c_from_CDC :> signalsource;
             }
          break;
         }

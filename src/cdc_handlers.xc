@@ -158,6 +158,11 @@ unsafe void cdc_handler1(client interface cdc_if cdc , streaming chanend c_from_
                      c_from_dsp <: state;
 
                      break;
+                 case SignalSource:
+                     c_from_dsp <: SignalSource;
+                     c_from_dsp <: buff->rx.read1[0];
+                     buff->rx.read1++;
+                     break;
                 default:
                     printf("Unknown command %d %d %d\n" , buff->rx.read1[0] , buff->rx.read1[1],buff->rx.read1[2]);
                     break;

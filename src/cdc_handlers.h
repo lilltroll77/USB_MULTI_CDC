@@ -19,7 +19,7 @@ interface cdc_if{
 
 
 enum INstatus_e{InEPready=-2 , BufferWritten=-1 , BufferReadyToWrite=0};
-enum message_e{streamOUT, PIsection , EQsection , resetPI , resetEQsec , resetEQ , FuseCurrent , FuseStatus};
+enum message_e{streamOUT, PIsection , EQsection , resetPI , resetEQsec , resetEQ , FuseCurrent , FuseStatus , SignalSource};
 
 unsafe void cdc_handler1(client interface cdc_if cdc , streaming chanend c_from_dsp , streaming chanend c_from_RX , chanend c_temp , chanend c_ep_in[], XUD_buffers_t * unsafe buff);
 
