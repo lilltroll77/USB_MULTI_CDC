@@ -18,7 +18,7 @@
 
 
 //cdc data is queued on a FIFO
-unsafe void cdc_handler1(client interface cdc_if cdc , streaming chanend c_from_dsp , streaming chanend c_from_RX, chanend c_temp  , chanend c_ep_in[],XUD_buffers_t * unsafe buff){
+unsafe void cdc_handler1(client interface cdc_if cdc , streaming chanend c_from_dsp , streaming chanend c_from_RX, chanend c_temp ,  chanend c_fromSigGen  , chanend c_ep_in[],XUD_buffers_t * unsafe buff){
     XUD_Result_t result;
     struct master_setting_t settings;
     int buffer_writing2host=InEPready;
@@ -64,12 +64,20 @@ unsafe void cdc_handler1(client interface cdc_if cdc , streaming chanend c_from_
                  case streamOUT:
                     int state = *buff->rx.read1++;
                     soutct(c_from_RX , 5); // Reset all states in RX
-                    if(state)
+                    if(state){
+                        c_fromSigGen <: MLS18;
+                      for(int i=0; i<4 ; i++){
+                        c_from_dsp <: -1; //Bypass section...
+                        c_from_dsp <: resetEQsec;
+                        c_from_dsp <: &dsp_state[i];//... and reset states
+                      }
+
                         printf("stream out: ON\n");
+                    }
                     else
                         printf("stream out: OFF\n");
-                        c_from_dsp <: streamOUT;
-                        c_from_dsp <: state; //Tell dsp core to start/stop sending sync signals
+                    c_from_dsp <: streamOUT;
+                    c_from_dsp <: state; //Tell dsp core to start/stop sending sync signals
 
                 break;
                  case PIsection:{
@@ -161,6 +169,11 @@ unsafe void cdc_handler1(client interface cdc_if cdc , streaming chanend c_from_
                  case SignalSource:
                      c_from_dsp <: SignalSource;
                      c_from_dsp <: buff->rx.read1[0];
+                     buff->rx.read1++;
+                     break;
+                 case SignalGenerator:
+                     //printint(buff->rx.read1[0]);
+                     c_fromSigGen <: buff->rx.read1[0];
                      buff->rx.read1++;
                      break;
                 default:

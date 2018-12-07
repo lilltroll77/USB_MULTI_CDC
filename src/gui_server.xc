@@ -14,25 +14,38 @@
 unsafe void gui_server(streaming chanend c_from_RX , streaming chanend c_from_dsp , struct fuse_t* unsafe fuse){
     enum pos_e i=Slow;
     unsigned slow=0;
-
+    unsigned CPUload=0;
     struct DSPmem_t* unsafe mem;
-    #pragma unsafe arrays
+#pragma unsafe arrays
     //printintln(fuse->current);
     //printintln(fuse->state);
     fuse->current= 32<<14; //32 [A] default
     fuse->state = 1;
+    unsigned blockNumber=0;
+    timer tmr;
+    unsigned time;
+    tmr:>time;
     while(1){
-        c_from_dsp :> mem;
+        select{
+        case tmr when timerafter(time + 2E6) :> time:
+        if(CPUload>0)
+            CPUload--;
+        break;
+        case c_from_dsp :> mem:
         struct hispeed_t* unsafe fast =&mem->fast;
-       // set_core_fast_mode_on();
-        soutct(c_from_RX , 5);
+        // set_core_fast_mode_on();
+/*1*/   c_from_RX <:fast->FFTtrig;
         c_from_RX <: fast->IA;
         c_from_RX <: fast->IC;
         c_from_RX <: fast->QE;
         c_from_RX <: fast->Torque;
-        c_from_RX <: fast->Flux;
+/*6*/   c_from_RX <: fast->Flux;
         c_from_RX <: fast->angle;
         c_from_RX <: fuse->state;
+        if(fast->CPUload > CPUload)
+            CPUload = fast->CPUload;
+/*9*/   c_from_RX <:fast->CPUload;
+
 
         int absIA = abs(fast->IA);
         int absIB = abs(fast->IA + fast->IC);
@@ -52,5 +65,8 @@ unsafe void gui_server(streaming chanend c_from_RX , streaming chanend c_from_ds
 
         }
 
+        break;
+
+        }
     }
 }

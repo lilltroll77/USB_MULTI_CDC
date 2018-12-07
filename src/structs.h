@@ -174,6 +174,8 @@ struct hispeed_t{
     int Flux;
     int U;
     int angle;
+    unsigned CPUload;
+    unsigned FFTtrig;
 };
 
 struct hispeed_vector_t{
@@ -192,7 +194,8 @@ struct USBmem_t{
     unsigned index; //4
     float temp; //5
     int states; //6
-    unsigned reserved[16-6]; // UPDATE if new line is inserted
+    unsigned DSPload;//7
+    unsigned reserved[16-7]; // UPDATE if new line is inserted
     struct midspeed_vector_t mid;
     struct hispeed_vector_t fast;
 };
@@ -201,7 +204,7 @@ struct USBmem_t{
 
 struct DSPmem_t{
     struct hispeed_t fast;
-    //struct lowspeed_t slow;
+    struct lowspeed_t slow;
     //struct midspeed_t mid;
 };
 

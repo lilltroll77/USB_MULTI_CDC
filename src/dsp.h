@@ -12,6 +12,8 @@
 #include "structs.h"
 typedef long long int s64;
 
+#define FFT_LEN (1<<18)
+
 struct state_t{
     s64 y1;
     s64 y2;
@@ -36,9 +38,9 @@ struct regulator_t{
     struct EQ_t EQ[2];
 };
 
+enum signal_e{OFF , MLS18 , RND , SINE , OCTAVE};
 
-
-void MLSgen(streaming chanend c);
+void signalgenerator(streaming chanend c , chanend c_ctrl);
 unsafe void DSP(streaming chanend c_from_GUI , streaming chanend c_from_CDC , streaming chanend c_from_MLS , struct fuse_t &fuse);
 
 

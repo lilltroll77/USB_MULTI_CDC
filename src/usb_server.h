@@ -11,7 +11,7 @@
 
 
 
-void usb_server(streaming chanend c_dsp2CDC , streaming chanend sc_GUI2RX, chanend c_temp);
+void usb_server(streaming chanend c_dsp2CDC , streaming chanend sc_GUI2RX, chanend c_temp ,  chanend c_sigGen2CDC);
 unsafe void resetPointers(XUD_buffers_t &buffer);
 unsafe void RX_block(streaming chanend c_from_gui , streaming chanend c_from_CDC);
 

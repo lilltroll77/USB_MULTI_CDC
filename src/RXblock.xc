@@ -12,8 +12,8 @@ unsafe void RX_block(streaming chanend c_from_gui , streaming chanend c_from_CDC
     //set_core_fast_mode_off();
     unsigned long long pi = 3141592543358979324ull;
     //printullongln(pi);
-    unsigned mid , i , blockNumber;
-    int block=0;
+    unsigned mid , fftTrig;
+    int block=0,blockNumber;
     struct USBmem_t USBmem[2]={0};
     USBmem[0].checknumber = pi;
     USBmem[1].checknumber = pi;
@@ -23,56 +23,29 @@ unsafe void RX_block(streaming chanend c_from_gui , streaming chanend c_from_CDC
     char ct;
     c_from_CDC <: (struct USBmem_t* unsafe) &USBmem[0];
     struct hispeed_vector_t* unsafe fast;
+    c_from_gui <: blockNumber;
     while(1){
         select{
         case sinct_byref(c_from_CDC , ct):
             mid=0;
-            i=0;
             blockNumber=0;
             fast = &USBmem[block].fast;
         break;
-        case sinct_byref(c_from_gui , ct):
-            c_from_gui :> fast->IA[i]; //printintln(mem->fast.IA[fast]);
+/*1*/   case c_from_gui :> fftTrig:
+            int i=(fftTrig&127);
+            c_from_gui :> fast->IA[i];
             c_from_gui :> fast->IC[i];
             c_from_gui :> fast->QE[i];
             c_from_gui :> fast->Torque[i];
-            c_from_gui :> fast->Flux[i];
+/*5*/       c_from_gui :> fast->Flux[i];
             c_from_gui :> fast->angle[i];
             c_from_gui :> USBmem[block].states;
-   /*         c_from_gui :> int _;
-            c_from_gui :> int _;
-            c_from_gui :> int _;
-            c_from_gui :> int _;
-            c_from_gui :> int _;
+            c_from_gui :> USBmem[block].DSPload;
+/*9*/
 
-            c_from_gui :> i;
-            //printchar('R');
-            switch(i){
-            case Slow:
-                int slow;
-                c_from_gui :> slow; //pos
-                c_from_gui :> (mem->slow , int[])[slow];
-                slow = (slow+1)% sizeof(mem->slow)/4;
-                break;
-            case Pos:
-                c_from_gui :> mem->mid.pos[mid];
-                break;
-            case Vel:
-                c_from_gui :> mem->mid.vel[mid];
-                break;
-            case Perror:
-                c_from_gui :> mem->mid.perror[mid];
-                break;
-                // add cases here!
-            default:
-                break;
-            };
-            mid = (mid+1)&(PKG_SIZE/32-1);
-
-*/
-            i++;
-            if(i==128){
-                USBmem[block].index = blockNumber++;
+            if(i == 127){
+                USBmem[block].index = fftTrig>>7; // 128 samples in each block
+                //printintln(fftTrig>>7);
                 c_from_CDC <:(int* unsafe) &USBmem[block]; // send pointer to CDC core
                 i=0;
                 block = !block;
